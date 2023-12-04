@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"net/http"
 	"fmt"
 	"log"
@@ -11,12 +12,13 @@ import (
 
 const port string = ":8080"
 
-var blogs = make(map[int]string)
 
 type article struct{
 	Title string `json:"title"`
 	Body string `json:"body"`
 }
+
+var blogs = make(map[int]article)
 
 func main(){
 
@@ -47,26 +49,90 @@ func RESTHandler(w http.ResponseWriter, r *http.Request){
 	}
 	if r.Method == http.MethodPost {
 	        body,err:=ioutil.ReadAll(r.Body)
+
 		if err!=nil{
-			fmt.Println("There is a error with the request, ",err)
+			fmt.Fprintln(w,"There was a error reading the data",err)
 		}
 
-		body_as_string := string(body) //converting the byte slice to string
+		body_as_string := string(body) //making the byte slice as string
+		
+
+		//next step is unmarshalling the string into json
+
 		var data article
 
 		err = json.Unmarshal([]byte(body_as_string),&data)
 
 		if err!=nil{
-			fmt.Println("There was a error unmarshalling the json data",err)
+			fmt.Fprintln(w,"There was a error unmarshalling the data",err)
 		}
 
-		fmt.Fprintln(w,data," has the title ",data.Title," and the body ",data.Body)
+		id,_:= strconv.Atoi(mux.Vars(r)["id"])
+
+		for k,_:= range blogs{
+			if k == id{
+				blogs[id]=data
+				fmt.Fprintln(w,"The article with id ",id, " has been update and now has the title", blogs[id].Title," and the content has been updated to ",blogs[id].Body)
+				return
+			}
+		}
+
+
         }
         if r.Method == http.MethodPut {
                 fmt.Fprintln(w,"You've hit a PUT method inside the handler",blogs)
+
+		data,err:=ioutil.ReadAll(r.Body)
+
+		if err!=nil{
+			fmt.Fprintln(w,"There was a error reading the data",err)
+		}
+		data_as_string := string(data)
+
+		var data_final article
+
+		json.Unmarshal([]byte(data_as_string),&data_final)
+
+		id,_:=strconv.Atoi(mux.Vars(r)["id"])
+
+		if len(blogs)==0{
+			blogs[id] = data_final
+			fmt.Fprintln(w,"The first data has been inserted")
+		}else{
+			for k,_:= range blogs{
+			     if k==id{
+				fmt.Fprintln(w,"The id already has data,please put a POST request instead")
+				return
+			     }
+		        }
+		        blogs[id] = data_final
+		        fmt.Fprintln(w,"The body with id = ",id," has been updated to",blogs[id].Title," and ",blogs[id].Body)
+		}
+
+		fmt.Fprintln(w,blogs)
         }
         if r.Method == http.MethodDelete {
                 fmt.Fprintln(w,"You've hit a DELETE method inside the handler",blogs)
+
+		data,_:=ioutil.ReadAll(r.Body)
+
+		data_as_string:=string(data)
+
+		var data_final article
+
+		json.Unmarshal([]byte(data_as_string),&data_final)
+
+		id,_:=strconv.Atoi(mux.Vars(r)["id"])
+
+		for i,_:=range blogs{
+			if id==i{
+				delete(blogs,id)
+				fmt.Fprintln(w,"The data for the given id has been deleted")
+				return
+			}
+		}
+		fmt.Fprintln(w,"There was no article in the database matching this id.")
+
         }
 
 
